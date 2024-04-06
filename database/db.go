@@ -3,7 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	// "log"
+	"log"
 	"os"
 
 	// "github.com/joho/godotenv"
@@ -16,23 +16,43 @@ func StartDB() *sql.DB {
 	// 	log.Fatal("Error loading .env file")
 	// }
 
-	host := os.Getenv("DB_HOST")
-	user := os.Getenv("DB_USERNAME")
-	password := os.Getenv("DB_PASSWORD")
-	port := os.Getenv("DB_PORT")
-	dbname := os.Getenv("DB_NAME")
+	user := os.Getenv("PG_USER")
+	password := os.Getenv("PG_PASSWORD")
+	host := os.Getenv("PG_HOST")
+	dbname := os.Getenv("PG_DBNAME")
+	sslmode := os.Getenv("PG_SSLMODE")
 
-	config := fmt.Sprintf("host=%s port=%v user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+	// config := fmt.Sprintf("host=%s port=%v user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
 
-	db, err := sql.Open("postgres", config)
+	// db, err := sql.Open("postgres", config)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// Constructing connection string
+	connStr := fmt.Sprintf("postgresql://%s:%s@%s/%s?sslmode=%s", user, password, host, dbname, sslmode)
+
+	// Opening a connection to the database
+	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		panic(err)
+	  log.Fatal(err)
 	}
-
-	err = db.Ping()
+	defer db.Close()
+  
+	rows, err := db.Query("select version()")
 	if err != nil {
-		panic(err)
+	  log.Fatal(err)
 	}
+	defer rows.Close()
+  
+	var version string
+	for rows.Next() {
+	  err := rows.Scan(&version)
+	  if err != nil {
+		log.Fatal(err)
+	  }
+	}
+	fmt.Printf("version=%s\n", version)
 
 	return db
 }
