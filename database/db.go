@@ -3,18 +3,18 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	// "log"
 	"os"
 
-	"github.com/joho/godotenv"
+	// "github.com/joho/godotenv"
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
 func StartDB() *sql.DB {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	log.Fatal("Error loading .env file")
+	// }
 
 	host := os.Getenv("DB_HOST")
 	user := os.Getenv("DB_USERNAME")
