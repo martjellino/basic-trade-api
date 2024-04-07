@@ -1,6 +1,6 @@
 module basic-trade-api
 
-go 1.22.1
+go 1.23
 
 require (
 	github.com/cloudinary/cloudinary-go/v2 v2.7.0
