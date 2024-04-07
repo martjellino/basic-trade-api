@@ -39,20 +39,20 @@ func StartDB() *sql.DB {
 	}
 	defer db.Close()
   
-	// rows, err := db.Query("select version()")
-	// if err != nil {
-	//   log.Fatal(err)
-	// }
-	// defer rows.Close()
+	rows, err := db.Query("select version()")
+	if err != nil {
+	  log.Fatal(err)
+	}
+	defer rows.Close()
   
-	// var version string
-	// for rows.Next() {
-	//   err := rows.Scan(&version)
-	//   if err != nil {
-	// 	log.Fatal(err)
-	//   }
-	// }
-	// fmt.Printf("version=%s\n", version)
+	var version string
+	for rows.Next() {
+	  err := rows.Scan(&version)
+	  if err != nil {
+		log.Fatal(err)
+	  }
+	}
+	fmt.Printf("version=%s\n", version)
 
 	return db
 }
