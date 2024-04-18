@@ -4,12 +4,13 @@ import (
 	"basic-trade-api/models/variant"
 	"basic-trade-api/services"
 	"database/sql"
+	// "fmt"
 	"math"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-playground/validator"
+	// "github.com/go-playground/validator"
 	jwt5 "github.com/golang-jwt/jwt/v5"
 )
 
@@ -166,28 +167,28 @@ func GetVariantByID(ctx *gin.Context) {
 func UpdateVariant(ctx *gin.Context) {
 	variantUUID := ctx.Param("variantUUID")
 
-	var variantRequest variant.VariantRequest
-	if err := ctx.ShouldBind(&variantRequest); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
-		return
-	}
-
-	// Validate the variant request data
-	if err := variant.Validate.Struct(variantRequest); err != nil {
-		// If validation fails, extract validation errors and return them
-		validationErrors := make(map[string]string)
-		for _, err := range err.(validator.ValidationErrors) {
-			validationErrors[err.Field()] = err.Tag()
-		}
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Validation errors", "details": validationErrors})
-		return
-	}
-
 	db, _ := ctx.Get("db")
 	dbConn, ok := db.(*sql.DB)
 	if !ok {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"message": "Failed to cast database connection to *sql.DB",
+		})
+		return
+	}
+
+	requestInterface, ok := ctx.Get("request")
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Parsed data not found in context",
+		})
+		return
+	}
+
+	// Get the request data
+	variantRequest, ok := requestInterface.(variant.VariantRequest)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Failed to cast request to *variantRequest",
 		})
 		return
 	}
