@@ -1,6 +1,7 @@
 package product
 
 import (
+	"basic-trade-api/models/variant"
 	"mime/multipart"
 	"time"
 )
@@ -12,6 +13,7 @@ type ProductResponse struct {
 	ImageURL        string                `json:"imageUrl"`
 	ImageFileHeader *multipart.FileHeader `json:"-"`
 	AdminID         int                   `json:"adminId"`
-	CreatedAt       time.Time             `json:"createdAt"`
-	UpdatedAt       time.Time             `json:"updatedAt"`
+	Variants        []variant.VariantResponse
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }

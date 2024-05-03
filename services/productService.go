@@ -2,6 +2,7 @@ package services
 
 import (
 	"basic-trade-api/models/product"
+	"basic-trade-api/models/variant"
 	"database/sql"
 	"errors"
 	"time"
@@ -9,81 +10,135 @@ import (
 
 func CreateProductService(db *sql.DB, productRequest product.ProductRequest, adminId int) (*product.ProductResponse, error) {
 	var productResponse product.ProductResponse
-	query := `INSERT INTO products (name, image_url, admin_id) VALUES ($1, $2, $3) RETURNING id, uuid, name, image_url, admin_id, created_at, updated_at`
-	err := db.QueryRow(query, productRequest.Name, productRequest.ImageURL, adminId).Scan(&productResponse.ID, &productResponse.UUID, &productResponse.Name, &productResponse.ImageURL, &productResponse.AdminID, &productResponse.CreatedAt, &productResponse.UpdatedAt)
+
+	// Insert the data and retrieve the generated ID
+	query := `INSERT INTO products (name, image_url, admin_id) VALUES ($1, $2, $3) RETURNING id`
+	err := db.QueryRow(query, productRequest.Name, productRequest.ImageURL, adminId).Scan(&productResponse.ID)
 	if err != nil {
 		return nil, err
 	}
-	productResponse.ImageFileHeader = productRequest.ImageFile
 
-	// Assign the uploaded file URL to the ProductResponse struct
-	productResponse.ImageURL = productRequest.ImageURL
+	// Fetch the inserted row using the generated ID
+	query = `SELECT id, uuid, name, image_url, admin_id, created_at, updated_at FROM products WHERE id = $1`
+	err = db.QueryRow(query, productResponse.ID).Scan(
+		&productResponse.ID, &productResponse.UUID, &productResponse.Name, &productResponse.ImageURL,
+		&productResponse.AdminID, &productResponse.CreatedAt, &productResponse.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	productResponse.ImageFileHeader = productRequest.ImageFile
 
 	return &productResponse, nil
 }
 
-func GetAllProductService(db *sql.DB, pageSize int, offset int, name string) ([]product.ProductResponse, int, error) {
-	var products []product.ProductResponse
-	var total int
+func GetAllProductService(db *sql.DB, pageSize, offset int, name string) ([]product.ProductResponse, int, error) {
+    var products []product.ProductResponse
+    var total int
 
-	// Count total number of products
-	query := `SELECT COUNT(*) FROM products`
-	err := db.QueryRow(query).Scan(&total)
-	if err != nil {
-		return nil, 0, err
-	}
+    // Count total number of products
+    query := `SELECT COUNT(*) FROM products`
+    err := db.QueryRow(query).Scan(&total)
+    if err != nil {
+        return nil, 0, err
+    }
 
-	baseQuery := `SELECT id, uuid, name, image_url, admin_id, created_at, updated_at FROM products`
-	// Add WHERE clause if variantName is provided
-	if name != "" {
-		name = "%" + name + "%"
-		baseQuery += ` WHERE name ILIKE $1`
-		baseQuery += ` LIMIT $2 OFFSET $3`
+    baseQuery := ` SELECT products.id, products.uuid, products.name, products.image_url, products.admin_id, products.created_at, products.updated_at FROM products `
 
-		// Execute the query
-		rows, err := db.Query(baseQuery, name, pageSize, offset)
-		if err != nil {
-			return nil, 0, err
-		}
-		defer rows.Close()
+    // Add WHERE clause if name is provided
+    if name != "" {
+        name = "%" + name + "%"
+        baseQuery += `WHERE name ILIKE $1`
+        baseQuery += `LIMIT $2 OFFSET $3`
 
-		// Process the query results
-		for rows.Next() {
-			var productResponse product.ProductResponse
-			err := rows.Scan(&productResponse.ID, &productResponse.UUID, &productResponse.Name, &productResponse.ImageURL, &productResponse.AdminID, &productResponse.CreatedAt, &productResponse.UpdatedAt)
-			if err != nil {
-				return nil, 0, err
-			}
-			products = append(products, productResponse)
-		}
-		if err = rows.Err(); err != nil {
-			return nil, 0, err
-		}
-	} else {
-		baseQuery += ` LIMIT $1 OFFSET $2`
+        // Execute the query
+        rows, err := db.Query(baseQuery, name, pageSize, offset)
+        if err != nil {
+            return nil, 0, err
+        }
+        defer rows.Close()
 
-		// Execute the query
-		rows, err := db.Query(baseQuery, pageSize, offset)
-		if err != nil {
-			return nil, 0, err
-		}
-		defer rows.Close()
+        // Process the query results
+        for rows.Next() {
+            var productResponse product.ProductResponse
+            err := rows.Scan(&productResponse.ID, &productResponse.UUID, &productResponse.Name, &productResponse.ImageURL, &productResponse.AdminID, &productResponse.CreatedAt, &productResponse.UpdatedAt)
+            if err != nil {
+                return nil, 0, err
+            }
 
-		// Process the query results
-		for rows.Next() {
-			var productResponse product.ProductResponse
-			err := rows.Scan(&productResponse.ID, &productResponse.UUID, &productResponse.Name, &productResponse.ImageURL, &productResponse.AdminID, &productResponse.CreatedAt, &productResponse.UpdatedAt)
-			if err != nil {
-				return nil, 0, err
-			}
-			products = append(products, productResponse)
-		}
-		if err = rows.Err(); err != nil {
-			return nil, 0, err
-		}
-	}
+            // Fetch variants for the product
+            variants, err := getVariantsForProduct(db, productResponse.ID)
+            if err != nil {
+                return nil, 0, err
+            }
+            productResponse.Variants = variants
 
-	return products, total, nil
+            products = append(products, productResponse)
+        }
+
+        if err = rows.Err(); err != nil {
+            return nil, 0, err
+        }
+    } else {
+        baseQuery += `LIMIT $1 OFFSET $2`
+
+        // Execute the query
+        rows, err := db.Query(baseQuery, pageSize, offset)
+        if err != nil {
+            return nil, 0, err
+        }
+        defer rows.Close()
+
+        // Process the query results
+        for rows.Next() {
+            var productResponse product.ProductResponse
+            err := rows.Scan(&productResponse.ID, &productResponse.UUID, &productResponse.Name, &productResponse.ImageURL, &productResponse.AdminID, &productResponse.CreatedAt, &productResponse.UpdatedAt)
+            if err != nil {
+                return nil, 0, err
+            }
+
+            // Fetch variants for the product
+            variants, err := getVariantsForProduct(db, productResponse.ID)
+            if err != nil {
+                return nil, 0, err
+            }
+            productResponse.Variants = variants
+
+            products = append(products, productResponse)
+        }
+
+        if err = rows.Err(); err != nil {
+            return nil, 0, err
+        }
+    }
+
+    return products, total, nil
+}
+
+func getVariantsForProduct(db *sql.DB, productID int) ([]variant.VariantResponse, error) {
+    var variants []variant.VariantResponse
+    query := ` SELECT id, uuid, variant_name, quantity, product_id, created_at, updated_at FROM variants WHERE product_id = $1 `
+    rows, err := db.Query(query, productID)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        var variantResponse variant.VariantResponse
+        err := rows.Scan(&variantResponse.ID, &variantResponse.UUID, &variantResponse.VariantName, &variantResponse.Quantity, &variantResponse.ProductID, &variantResponse.CreatedAt, &variantResponse.UpdatedAt)
+        if err != nil {
+            return nil, err
+        }
+        variants = append(variants, variantResponse)
+    }
+
+    if err = rows.Err(); err != nil {
+        return nil, err
+    }
+
+    return variants, nil
 }
 
 func GetProductByIDService(db *sql.DB, productUUID string) (*product.ProductResponse, error) {

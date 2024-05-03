@@ -98,7 +98,6 @@ func CreateProduct(ctx *gin.Context) {
 			"id":   newProduct.ID,
 			"uuid": newProduct.UUID,
 			"name": newProduct.Name,
-			// Use uploadResult here instead of newProduct.ImageURL
 			"imageUrl":  uploadResult,
 			"adminId":   adminId,
 			"createdAt": newProduct.CreatedAt,
@@ -110,46 +109,49 @@ func CreateProduct(ctx *gin.Context) {
 }
 
 func GetAllProduct(ctx *gin.Context) {
-	name := ctx.Query("name")
+    name := ctx.Query("name")
+    db, _ := ctx.Get("db")
+    dbConn, ok := db.(*sql.DB)
+    if !ok {
+        ctx.JSON(http.StatusInternalServerError, gin.H{
+            "message": "Failed to cast database connection to *sql.DB",
+        })
+        return
+    }
 
-	db, _ := ctx.Get("db")
-	dbConn, ok := db.(*sql.DB)
-	if !ok {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Failed to cast database connection to *sql.DB",
-		})
-		return
-	}
+    pageSize, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "10"))
+    pageNum, _ := strconv.Atoi(ctx.Query("pageNum"))
 
-	pageSize := 10
-	pageNum, _ := strconv.Atoi(ctx.Param("pageNum"))
-	offset := (pageNum - 1) * pageSize
+    if pageNum < 1 {
+        ctx.JSON(http.StatusBadRequest, gin.H{
+            "message": "Invalid page number",
+        })
+        return
+    }
 
-	if offset < 0 {
-		offset = 0
-	}
+    offset := (pageNum - 1) * pageSize
 
-	getProducts, total, err := services.GetAllProductService(dbConn, pageSize, offset, name)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
-		})
-		return
-	}
+    getProducts, total, err := services.GetAllProductService(dbConn, pageSize, offset, name)
+    if err != nil {
+        ctx.JSON(http.StatusInternalServerError, gin.H{
+            "message": err.Error(),
+        })
+        return
+    }
 
-	totalPages := int(math.Ceil(float64(total) / float64(pageSize)))
+    totalPages := int(math.Ceil(float64(total) / float64(pageSize)))
+    responseData := gin.H{
+        "message": "Successfully fetch products!",
+        "data":    getProducts,
+        "meta": gin.H{
+            "limit":     pageSize,
+            "offset":    offset,
+            "total":     total,
+            "totalPage": totalPages,
+        },
+    }
 
-	responseData := gin.H{
-		"message": "Successfully fetch products!",
-		"data":    getProducts,
-		"meta": gin.H{
-			"limit":     pageSize,
-			"offset":    offset,
-			"total":     total,
-			"totalPage": totalPages,
-		},
-	}
-	ctx.JSON(http.StatusOK, responseData)
+    ctx.JSON(http.StatusOK, responseData)
 }
 
 func GetProductByID(ctx *gin.Context) {
@@ -270,7 +272,7 @@ func UpdateProduct(ctx *gin.Context) {
 			"id":        editProduct.ID,
 			"uuid":      editProduct.UUID,
 			"name":      editProduct.Name,
-			"imageUrl":  uploadResult,
+			"imageUrl": editProduct.ImageURL,
 			"adminId":   editProduct.AdminID,
 			"createdAt": editProduct.CreatedAt,
 			"updatedAt": editProduct.UpdatedAt,
@@ -305,7 +307,7 @@ func DeleteProduct(ctx *gin.Context) {
 	}
 	adminId := int(adminIdFloat64)
 
-	removeProduct, err := services.DeleteProductService(dbConn, productUUID, adminId)
+	_, err := services.DeleteProductService(dbConn, productUUID, adminId)
 	if err != nil {
 		if err.Error() == "product not found" {
 			ctx.JSON(http.StatusNotFound, gin.H{
@@ -320,16 +322,7 @@ func DeleteProduct(ctx *gin.Context) {
 	}
 
 	responseData := gin.H{
-		"message": "Successfully update the product!",
-		"data": gin.H{
-			"id":        removeProduct.ID,
-			"uuid":      removeProduct.UUID,
-			"name":      removeProduct.Name,
-			"imageUrl":  removeProduct.ImageURL,
-			"adminId":   removeProduct.AdminID,
-			"createdAt": removeProduct.CreatedAt,
-			"updatedAt": removeProduct.UpdatedAt,
-		},
+		"message": "Successfully delete the product!",
 	}
 	ctx.JSON(http.StatusOK, responseData)
 }

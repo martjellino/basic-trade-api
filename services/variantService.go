@@ -4,15 +4,11 @@ import (
 	"basic-trade-api/models/variant"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 )
 
 func CreateVariantService(db *sql.DB, variantReq variant.VariantRequest, adminId int) (*variant.VariantResponse, error) {
-	// Check if the product with the given productId belongs to the admin
-	if !isProductBelongsToAdmin(db, variantReq.ProductID, adminId) {
-		return nil, errors.New("product does not belong to the admin")
-	}
-
 	var variantResponse variant.VariantResponse
 	query := `INSERT INTO variants (variant_name, quantity, product_id) VALUES ($1, $2, $3) RETURNING id, uuid, variant_name, quantity, product_id, created_at, updated_at`
 	err := db.QueryRow(query, variantReq.VariantName, variantReq.Quantity, variantReq.ProductID).Scan(&variantResponse.ID, &variantResponse.UUID, &variantResponse.VariantName, &variantResponse.Quantity, &variantResponse.ProductID, &variantResponse.CreatedAt, &variantResponse.UpdatedAt)
@@ -103,66 +99,51 @@ func GetVariantByIDService(db *sql.DB, variantUUID string) (*variant.VariantResp
 }
 
 func UpdateVariantService(db *sql.DB, variantRequest variant.VariantRequest, variantUUID string, adminId int) (*variant.VariantResponse, error) {
-	var variantResponse variant.VariantResponse
+    var variantResponse variant.VariantResponse
+    query := `SELECT id, uuid, variant_name, quantity, product_id, created_at, updated_at FROM variants WHERE uuid = $1`
+    err := db.QueryRow(query, variantUUID).Scan(&variantResponse.ID, &variantResponse.UUID, &variantResponse.VariantName, &variantResponse.Quantity, &variantResponse.ProductID, &variantResponse.CreatedAt, &variantResponse.UpdatedAt)
+    if err == sql.ErrNoRows {
+        // If no product is found with the given UUID, return a custom error
+        return nil, errors.New("variant not found")
+    } else if err != nil {
+        return nil, err
+    }
 
-	query := `SELECT id, uuid, variant_name, quantity, product_id, created_at, updated_at FROM variants WHERE uuid = $1`
-	err := db.QueryRow(query, variantUUID).Scan(&variantResponse.ID, &variantResponse.UUID, &variantResponse.VariantName, &variantResponse.Quantity, &variantResponse.ProductID, &variantResponse.CreatedAt, &variantResponse.UpdatedAt)
-	if err == sql.ErrNoRows {
-		// If no product is found with the given UUID, return a custom error
-		return nil, errors.New("variant not found")
-	} else if err != nil {
-		return nil, err
-	}
+    // Update variant details with new values
+    variantResponse.VariantName = variantRequest.VariantName
+    variantResponse.Quantity = variantRequest.Quantity
+    variantResponse.ProductID = variantRequest.ProductID
+    variantResponse.UpdatedAt = time.Now()
 
-	// Update variant details with new	 values
-	variantResponse.VariantName = variantRequest.VariantName
-	variantResponse.Quantity = variantRequest.Quantity
-	variantResponse.ProductID = variantRequest.ProductID
-	variantResponse.UpdatedAt = time.Now()
+    query = `UPDATE variants SET variant_name = $1, quantity = $2, product_id = $3, updated_at = $4 WHERE uuid = $5`
+    fmt.Printf("Query: %s\nParams: %v\n", query, []interface{}{variantResponse.VariantName, variantResponse.Quantity, variantResponse.ProductID, variantResponse.UpdatedAt, variantUUID})
+    _, err = db.Exec(query, variantResponse.VariantName, variantResponse.Quantity, variantResponse.ProductID, variantResponse.UpdatedAt, variantUUID)
+    if err != nil {
+        return nil, err
+    }
 
-	query = `UPDATE variants SET variant_name = $1, quantity = $2, product_id = $3, updated_at = $4 WHERE uuid = $5`
-	_, err = db.Exec(query, variantResponse.VariantName, variantResponse.Quantity, variantResponse.ProductID, variantResponse.UpdatedAt, variantUUID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &variantResponse, nil
+    return &variantResponse, nil
 }
 
-func DeleteVariantService(db *sql.DB, variantUUID string, adminId int) (*variant.VariantResponse, error) {
-	var variantResponse variant.VariantResponse
-	query := `SELECT id, uuid, variant_name, quantity, product_id, created_at, updated_at FROM variants WHERE uuid = $1`
-	rows, err := db.Query(query, variantUUID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+func DeleteVariantService(db *sql.DB, variantUUID string, adminId int) error {
+    query := `SELECT id FROM variants WHERE uuid = $1`
+    var variantID int
+    err := db.QueryRow(query, variantUUID).Scan(&variantID)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            // Variant not found
+            return errors.New("variant not found")
+        }
+        // Other error occurred
+        return err
+    }
 
-	if !rows.Next() {
-		// No product found with the given UUID and adminId
-		return nil, errors.New("variant not found")
-	}
-	err = rows.Scan(&variantResponse.ID, &variantResponse.UUID, &variantResponse.VariantName, &variantResponse.Quantity, &variantResponse.ProductID, &variantResponse.CreatedAt, &variantResponse.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
+    // Delete the variant
+    deleteQuery := `DELETE FROM variants WHERE uuid = $1`
+    _, err = db.Exec(deleteQuery, variantUUID)
+    if err != nil {
+        return err
+    }
 
-	query = `DELETE FROM variants WHERE uuid = $1`
-	_, err = db.Exec(query, variantUUID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &variantResponse, nil
-}
-
-// Helper function to check if the product with the given productId belongs to the admin
-func isProductBelongsToAdmin(db *sql.DB, productId, adminId int) bool {
-	query := "SELECT COUNT(*) FROM products WHERE id = $1 AND admin_id = $2"
-	var count int
-	err := db.QueryRow(query, productId, adminId).Scan(&count)
-	if err != nil || count == 0 {
-		return false
-	}
-	return true
+    return nil
 }

@@ -23,21 +23,22 @@ func StartApp(db *sql.DB) *gin.Engine {
 
 	productRouter := router.Group("/products")
 	{
-		productRouter.POST("/", middleware.Authentication(), middleware.ProductValidator(), controllers.CreateProduct)
 		productRouter.GET("/", controllers.GetAllProduct)
 		productRouter.GET("/:productUUID", controllers.GetProductByID)
-		productRouter.PUT("/:productUUID", middleware.Authentication(), middleware.ProductValidator(), controllers.UpdateProduct)
-		productRouter.DELETE("/:productUUID", middleware.Authentication(), controllers.DeleteProduct)
+		// productRouter.Use(middleware.Authentication())
+		productRouter.POST("/", middleware.Authentication(), middleware.ProductValidator(), controllers.CreateProduct)
+		productRouter.PUT("/:productUUID", middleware.Authentication(), middleware.ProductAuthorization(), middleware.ProductValidator(), controllers.UpdateProduct)
+		productRouter.DELETE("/:productUUID", middleware.Authentication(), middleware.ProductAuthorization(), controllers.DeleteProduct)
 	}
 
 	variantRouter := router.Group("/products/variants")
 	{
-		variantRouter.POST("/", middleware.Authentication(), middleware.VariantValidator(), controllers.CreateVariant)
 		variantRouter.GET("/", controllers.GetAllVariant)
 		variantRouter.GET("/:variantUUID", controllers.GetVariantByID)
-		variantRouter.PUT("/:variantUUID", middleware.Authentication(), middleware.VariantValidator(), controllers.UpdateVariant)
-		variantRouter.DELETE("/:variantUUID", middleware.Authentication(), controllers.DeleteVariant)
+		// variantRouter.Use(middleware.Authentication())
+		variantRouter.POST("/", middleware.Authentication(), middleware.VariantValidator(), controllers.CreateVariant)
+		variantRouter.PUT("/:variantUUID", middleware.Authentication(), middleware.VariantAuthorization(), middleware.VariantValidator(), controllers.UpdateVariant)
+		variantRouter.DELETE("/:variantUUID", middleware.Authentication(), middleware.VariantAuthorization(), controllers.DeleteVariant)
 	}
-
 	return router
 }

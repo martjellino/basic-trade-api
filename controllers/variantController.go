@@ -4,13 +4,11 @@ import (
 	"basic-trade-api/models/variant"
 	"basic-trade-api/services"
 	"database/sql"
-	// "fmt"
 	"math"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	// "github.com/go-playground/validator"
 	jwt5 "github.com/golang-jwt/jwt/v5"
 )
 
@@ -264,7 +262,7 @@ func DeleteVariant(ctx *gin.Context) {
 	}
 	adminId := int(adminIdFloat64)
 
-	removeVariant, err := services.DeleteVariantService(dbConn, variantUUID, adminId)
+	err := services.DeleteVariantService(dbConn, variantUUID, adminId)
 	if err != nil {
 		if err.Error() == "variant not found" {
 			ctx.JSON(http.StatusNotFound, gin.H{
@@ -280,15 +278,6 @@ func DeleteVariant(ctx *gin.Context) {
 
 	responseData := gin.H{
 		"message": "Successfully delete the variant!",
-		"data": gin.H{
-			"id":          removeVariant.ID,
-			"uuid":        removeVariant.UUID,
-			"variantName": removeVariant.VariantName,
-			"quantity":    removeVariant.Quantity,
-			"productId":   removeVariant.ProductID,
-			"createdAt":   removeVariant.CreatedAt,
-			"updatedAt":   removeVariant.UpdatedAt,
-		},
 	}
 	ctx.JSON(http.StatusOK, responseData)
 }
